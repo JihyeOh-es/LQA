@@ -247,7 +247,7 @@ function addTerm() {
 
   db.terms.push({
     id: uid(),
-    projectId: null,            // null = 공통 (작업별 분류는 슬라이스 2에서)
+    projectId: currentProjectId,   // 선택된 프로젝트 (공통이면 null)
     source,
     target,
     status: document.getElementById("g-status").value,
