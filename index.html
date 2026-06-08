@@ -157,7 +157,19 @@
 </div>
 
 <!-- === 스타일/캐릭터/QA (준비 중) === -->
-<div id="style-section" style="display:none;"><h2>스타일 가이드</h2><p class="muted">곧 만들 거예요.</p></div>
+<div id="style-section" style="display:none;">
+<h2>스타일 가이드</h2>
+<div class="row">
+  <input id="s-title" placeholder="제목 (예: 반말체로 통일)">
+  <input id="s-item" placeholder="항목 (예: UI, 컷신)" list="s-item-suggest">
+  <datalist id="s-item-suggest"></datalist>
+</div>
+<div class="row">
+  <input id="s-content" placeholder="내용 (어떤 결정인지)">
+  <button id="s-add">추가</button>
+</div>
+<div id="s-list"></div>
+</div>
 <div id="character-section" style="display:none;"><h2>캐릭터</h2><p class="muted">곧 만들 거예요.</p></div>
 <div id="qa-section" style="display:none;"><h2>QA 로그</h2><p class="muted">곧 만들 거예요.</p></div>
 
@@ -256,6 +268,7 @@ const TABS = ["glossary", "style", "character", "qa"];
 function switchTab(name) {
   currentTab = name;
   TABS.forEach(t => {
+    if (name === "style") renderDecisions();
     document.getElementById(t + "-section").style.display = (t === name) ? "block" : "none";
   });
   document.querySelectorAll(".tab-btn").forEach(b => {
@@ -432,6 +445,88 @@ function showTermWarn(source, target, candidates, sameTarget) {
   warn.innerHTML = html;
 }
 
+/* === 스타일 가이드: 추가 === */
+function addDecision() {
+  const title = document.getElementById("s-title").value.trim();
+  const content = document.getElementById("s-content").value.trim();
+  if (!title) return;
+
+  db.decisions.push({
+    id: uid(),
+    projectId: currentProjectId,
+    title,
+    content,
+    item: document.getElementById("s-item").value.trim(),
+    createdAt: Date.now()
+  });
+  save();
+  document.getElementById("s-title").value = "";
+  document.getElementById("s-content").value = "";
+  document.getElementById("s-item").value = "";
+  renderDecisions();
+}
+
+/* === 스타일 가이드: 삭제 (공통/프로젝트 둘 다 확인) === */
+function deleteDecision(id) {
+  const d = db.decisions.find(x => x.id === id);
+  if (!d) return;
+  const isCommon = d.projectId === null;
+  openModal(
+    "스타일 삭제",
+    isCommon
+      ? "'" + d.title + "'는 [공통] 결정이에요. 삭제하면 모든 작업에서 사라져요. 정말 삭제할까요?"
+      : "'" + d.title + "'를 삭제할까요?",
+    () => {
+      db.decisions = db.decisions.filter(x => x.id !== id);
+      save();
+      renderDecisions();
+    }
+  );
+}
+
+/* === 스타일 가이드: 목록 (필터 + 공통 태그) === */
+function renderDecisions() {
+  const list = document.getElementById("s-list");
+
+  const visible = db.decisions.filter(d => {
+    if (currentProjectId === null) return d.projectId === null;
+    return d.projectId === currentProjectId || d.projectId === null;
+  });
+
+  // 항목 자동완성 제안
+  const items = [...new Set(db.decisions.map(d => d.item).filter(Boolean))];
+  document.getElementById("s-item-suggest").innerHTML =
+    items.map(i => '<option value="' + esc(i) + '">').join("");
+
+  if (visible.length === 0) {
+    list.innerHTML = '<p class="muted">아직 스타일 결정이 없어요.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  visible.forEach(d => {
+    const el = document.createElement("div");
+    el.className = "term";
+    const showScope = (currentProjectId !== null && d.projectId === null);
+
+    const left = document.createElement("div");
+    left.innerHTML =
+      '<div class="term-main"><b>' + esc(d.title) + '</b>' +
+      (d.item ? ' <span class="status status-주의">' + esc(d.item) + '</span>' : '') +
+      (showScope ? ' <span class="scope-tag">◇ 공통</span>' : '') +
+      '</div>' +
+      (d.content ? '<div class="term-note">' + esc(d.content) + '</div>' : '');
+
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "삭제";
+    del.onclick = () => deleteDecision(d.id);
+
+    el.appendChild(left);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+  
 /* === 글로서리: 삭제 (공통/프로젝트 둘 다 확인) === */
 function deleteTerm(id) {
   const t = db.terms.find(x => x.id === id);
@@ -532,6 +627,7 @@ function escAttr(s) {
 document.getElementById("p-add").onclick = addProject;
 document.getElementById("p-name").addEventListener("change", autofillGenre);
 document.getElementById("g-add").onclick = tryAddTerm;
+document.getElementById("s-add").onclick = addDecision;
 document.querySelectorAll(".tab-btn").forEach(b => {
   b.onclick = () => switchTab(b.dataset.tab);
 });  
