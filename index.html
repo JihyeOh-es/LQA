@@ -273,14 +273,21 @@ function deleteTerm(id) {
 /* === 글로서리: 목록 그리기 === */
 function renderTerms() {
   const list = document.getElementById("g-list");
-  if (db.terms.length === 0) {
+
+  const visible = db.terms.filter(t => {
+    if (currentProjectId === null) return t.projectId === null;
+    return t.projectId === currentProjectId || t.projectId === null;
+  });
+
+  if (visible.length === 0) {
     list.innerHTML = '<p class="muted">아직 용어가 없어요.</p>';
     return;
   }
   list.innerHTML = "";
-  db.terms.forEach(t => {
+  visible.forEach(t => {
     const el = document.createElement("div");
     el.className = "term";
+    // ... (이 아래는 기존 그대로) ...
 
     const left = document.createElement("div");
     left.innerHTML =
