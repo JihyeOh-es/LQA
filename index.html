@@ -30,16 +30,24 @@
 <body>
 
 <h1>스페인어 LQA</h1>
-  <!-- === 프로젝트: 추가 폼 === -->
-<h2>프로젝트</h2>
-<div class="row">
-  <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
-  <input id="p-genre" placeholder="장르 (예: 게임)">
-  <button id="p-add">추가</button>
+  <!-- === 프로젝트: 현재 선택 띠 (선택 후 표시) === -->
+<div id="p-band" class="term" style="display:none;"></div>
+
+<!-- === 프로젝트: 선택 화면 (선택 전 표시) === -->
+<div id="p-select">
+  <h2>프로젝트 선택</h2>
+  <div class="row">
+    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
+    <input id="p-genre" placeholder="장르 (예: 게임)">
+    <button id="p-add">추가</button>
+  </div>
+  <div id="p-list"></div>
 </div>
-<div id="p-list"></div>
 
 <!-- === 글로서리: 추가 폼 === -->
+<h2>글로서리</h2>
+  <!-- === 글로서리 (프로젝트 선택 후 표시) === -->
+<div id="glossary-section" style="display:none;">
 <h2>글로서리</h2>
 <div class="row">
   <input id="g-source" placeholder="원문 (예: Guild)">
@@ -57,6 +65,7 @@
 
 <!-- === 글로서리: 목록 === -->
 <div id="g-list"></div>
+</div>
 
 <h2>내보내기</h2>
 <button id="export">전체 JSON 내보내기</button>
@@ -119,33 +128,85 @@ function deleteProject(id) {
   renderProjects();
 }
 
-/* === 프로젝트: 목록 그리기 === */
+/* === 프로젝트: 현재 선택 상태 === */
+let currentProjectId = null;   // null = 공통
+let projectChosen = false;     // false=선택 화면, true=작업 화면
+
+function selectProject(id) {   // id: null(공통) 또는 프로젝트 id
+  currentProjectId = id;
+  projectChosen = true;
+  renderProjectArea();
+}
+
+function showSelector() {
+  projectChosen = false;
+  renderProjectArea();
+}
+
+function projectName(id) {
+  if (id === null) return "공통";
+  const p = db.projects.find(p => p.id === id);
+  return p ? p.name : "공통";
+}
+
+function projectGenre(id) {
+  if (id === null) return "모든 작업 공용";
+  const p = db.projects.find(p => p.id === id);
+  return p ? p.genre : "";
+}
+
+/* === 프로젝트: 화면 전환 (띠 / 선택목록 / 글로서리) === */
+function renderProjectArea() {
+  const band = document.getElementById("p-band");
+  const selectEl = document.getElementById("p-select");
+  const glossary = document.getElementById("glossary-section");
+
+  if (projectChosen) {
+    selectEl.style.display = "none";
+    glossary.style.display = "block";
+    band.style.display = "flex";
+    const genre = projectGenre(currentProjectId);
+    band.innerHTML =
+      '<div class="term-main">' + esc(projectName(currentProjectId)) +
+      (genre ? ' <span class="status">' + esc(genre) + '</span>' : '') + '</div>' +
+      '<button id="p-change" class="del">바꾸기</button>';
+    document.getElementById("p-change").onclick = showSelector;
+  } else {
+    band.style.display = "none";
+    glossary.style.display = "none";
+    selectEl.style.display = "block";
+    renderProjects();
+  }
+}
+
+/* === 프로젝트: 선택 목록 그리기 === */
 function renderProjects() {
   const list = document.getElementById("p-list");
-  if (db.projects.length === 0) {
-    list.innerHTML = '<p class="muted">아직 프로젝트가 없어요.</p>';
-    return;
-  }
   list.innerHTML = "";
-  db.projects.forEach(p => {
-    const el = document.createElement("div");
-    el.className = "term";
+  list.appendChild(projectRow(null, "공통", "모든 작업 공용", false));   // 공통 = 항상 맨 위
+  db.projects.forEach(p => list.appendChild(projectRow(p.id, p.name, p.genre, true)));
+}
 
-    const left = document.createElement("div");
-    left.innerHTML =
-      '<div class="term-main">' + esc(p.name) +
-      (p.genre ? ' <span class="status">' + esc(p.genre) + '</span>' : '') +
-      '</div>';
+function projectRow(id, name, sub, deletable) {
+  const row = document.createElement("div");
+  row.className = "term";
+  row.style.cursor = "pointer";
+  row.onclick = () => selectProject(id);
 
+  const left = document.createElement("div");
+  left.innerHTML =
+    '<div class="term-main">' + esc(name) +
+    (sub ? ' <span class="status">' + esc(sub) + '</span>' : '') + '</div>';
+  row.appendChild(left);
+
+  if (deletable) {
     const del = document.createElement("button");
     del.className = "del";
     del.textContent = "삭제";
-    del.onclick = () => deleteProject(p.id);
-
-    el.appendChild(left);
-    el.appendChild(del);
-    list.appendChild(el);
-  });
+    del.onclick = (e) => { e.stopPropagation(); deleteProject(id); };
+    row.appendChild(del);
+  }
+  return row;
 }
   
 /* === 글로서리: 추가 === */
@@ -231,7 +292,7 @@ document.getElementById("p-add").onclick = addProject;
 document.getElementById("g-add").onclick = addTerm;
 document.getElementById("export").onclick = exportJSON;
 load();
-renderProjects();
+renderProjectArea();
 renderTerms();
 </script>
 
