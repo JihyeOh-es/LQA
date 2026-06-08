@@ -25,6 +25,13 @@
   .del { border-color: #ddd; color: #999; padding: 4px 10px; }
   .muted { color: #888; font-size: 13px; }
 
+  /* === 탭 제목 줄 (제목 좌 + 추가버튼 우) === */
+  .section-head { display: flex; justify-content: space-between; align-items: center; }
+  .add-btn {
+    background: #5D54C2; color: #fff; border: none; font-weight: 500;
+  }
+  .add-btn:hover { background: #4f47ad; }
+
   /* === 탭 버튼 === */
   #tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid #eee; }
   .tab-btn {
@@ -176,18 +183,19 @@
 <div id="s-list"></div>
 </div>
 <div id="character-section" style="display:none;">
-<h2>캐릭터 바이블</h2>
+<div class="section-head"><h2>캐릭터 바이블</h2><button id="c-add" class="add-btn">추가</button></div>
 <div class="row">
   <input id="c-source" placeholder="이름 (원문)">
   <input id="c-target" placeholder="이름 (번역)">
 </div>
+<div class="row">
+  <input id="c-gender" placeholder="성별">
+  <input id="c-age" placeholder="나이">
+</div>
 <div class="row"><input id="c-tone" placeholder="말투 (예: 반말, 활기차고 직설적)"></div>
 <div class="row"><input id="c-rel" placeholder="관계 (예: 마법사맛의 형 / 악마맛과 라이벌)"></div>
 <div class="row"><input id="c-habit" placeholder="말버릇 · 금지어"></div>
-<div class="row">
-  <input id="c-note" placeholder="메모 (선택)">
-  <button id="c-add">추가</button>
-</div>
+<div class="row"><input id="c-note" placeholder="메모 (선택)"></div>
 <div id="c-warn" class="warn-box"></div>
 <div id="c-list"></div>
 </div>
@@ -530,6 +538,9 @@ function addCharacter() {
     id: uid(),
     projectId: currentProjectId,
     source, target,
+    gender: document.getElementById("c-gender").value.trim(),
+    age: document.getElementById("c-age").value.trim(),
+    tone: document.getElementById("c-tone").value.trim(),
     tone: document.getElementById("c-tone").value.trim(),
     rel: document.getElementById("c-rel").value.trim(),
     habit: document.getElementById("c-habit").value.trim(),
@@ -537,7 +548,7 @@ function addCharacter() {
     createdAt: Date.now()
   });
   save();
-  ["c-source","c-target","c-tone","c-rel","c-habit","c-note"].forEach(i =>
+  ["c-source","c-target","c-gender","c-age","c-tone","c-rel","c-habit","c-note"].forEach(i =>
     document.getElementById(i).value = "");
   clearWarn("c-warn");
   renderCharacters();
@@ -581,6 +592,8 @@ function renderCharacters() {
     const showScope = (currentProjectId !== null && c.projectId === null);
 
     const lines = [];
+    const meta = [c.gender, c.age].filter(Boolean).join(" · ");
+    if (meta) lines.push(meta);
     if (c.tone) lines.push("말투: " + esc(c.tone));
     if (c.rel) lines.push("관계: " + esc(c.rel));
     if (c.habit) lines.push("말버릇: " + esc(c.habit));
