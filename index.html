@@ -13,8 +13,8 @@
     color: #222; line-height: 1.5;
   }
   h1 { font-size: 20px; font-weight: 600; }
-  h2 { font-size: 16px; font-weight: 600; margin-top: 28px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  h2 { font-size: 16px; font-weight: 600; margin-top: 28px; color: #333; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
   input, select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
   input { flex: 1; min-width: 120px; }
   button { padding: 7px 14px; border: 1px solid #999; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; }
@@ -25,6 +25,7 @@
   .status { font-size: 12px; padding: 2px 8px; border-radius: 5px; background: #eee; }
   .del { border-color: #ddd; color: #999; padding: 4px 10px; }
   .muted { color: #888; font-size: 13px; }
+
   /* === 프로젝트 띠 (선택 후 상단) === */
   #p-band {
     background: #EEEDFE;
@@ -54,15 +55,26 @@
     padding: 4px 18px 18px; margin-bottom: 24px;
   }
 
-  /* === 입력 줄 살짝 띄우기 === */
-  .row { margin-bottom: 10px; }
-  h2 { color: #333; }
+  /* === 중복 경고 (글로서리 입력칸 하단) === */
+  #g-warn { display: none; margin: -2px 0 12px; }
+  #g-warn .warn-msg { color: #c0392b; font-size: 13px; margin-bottom: 8px; }
+  #g-warn .cand {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    font-size: 13px; padding: 8px 10px; border: 1px solid #f3c9c4;
+    background: #fdf3f2; border-radius: 6px; margin-bottom: 6px;
+  }
+  #g-warn .cand .where { color: #888; font-size: 12px; }
+  #g-warn .cand button, #g-warn .new-btn {
+    font-size: 12px; padding: 4px 10px;
+  }
+  #g-warn .new-btn { border-color: #7F77DD; color: #534AB7; }
 </style>
 </head>
 <body>
 
 <h1>스페인어 LQA</h1>
-  <!-- === 프로젝트: 현재 선택 띠 (선택 후 표시) === -->
+
+<!-- === 프로젝트: 현재 선택 띠 (선택 후 표시) === -->
 <div id="p-band" class="term" style="display:none;"></div>
 
 <!-- === 프로젝트: 선택 화면 (선택 전 표시) === -->
@@ -71,13 +83,14 @@
   <div class="row">
     <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)" list="p-name-suggest">
     <datalist id="p-name-suggest"></datalist>
-    <input id="p-genre" placeholder="장르 (예: 게임)">
+    <input id="p-genre" placeholder="장르 (예: 게임)" list="p-genre-suggest">
+    <datalist id="p-genre-suggest"></datalist>
     <button id="p-add">추가</button>
   </div>
   <div id="p-list"></div>
 </div>
 
-  <!-- === 글로서리 (프로젝트 선택 후 표시) === -->
+<!-- === 글로서리 (프로젝트 선택 후 표시) === -->
 <div id="glossary-section" style="display:none;">
 <h2>글로서리</h2>
 <div class="row">
@@ -93,6 +106,9 @@
   <input id="g-note" placeholder="메모 (선택)">
   <button id="g-add">추가</button>
 </div>
+
+<!-- === 글로서리: 중복 경고 === -->
+<div id="g-warn"></div>
 
 <!-- === 글로서리: 목록 === -->
 <div id="g-list"></div>
@@ -120,7 +136,7 @@ function load() {
   if (!raw) return;
   try {
     const saved = JSON.parse(raw);
-    Object.assign(db, saved);   // 저장된 값으로 덮어쓰기
+    Object.assign(db, saved);
   } catch (e) {
     console.error("저장 데이터 읽기 실패:", e);
   }
@@ -134,7 +150,7 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-  /* === 프로젝트: 추가 === */
+/* === 프로젝트: 추가 === */
 function addProject() {
   const name = document.getElementById("p-name").value.trim();
   if (!name) return;
@@ -163,7 +179,7 @@ function deleteProject(id) {
 let currentProjectId = null;   // null = 공통
 let projectChosen = false;     // false=선택 화면, true=작업 화면
 
-function selectProject(id) {   // id: null(공통) 또는 프로젝트 id
+function selectProject(id) {
   currentProjectId = id;
   projectChosen = true;
   renderProjectArea();
@@ -202,6 +218,7 @@ function renderProjectArea() {
       (genre ? ' <span class="status">' + esc(genre) + '</span>' : '') + '</div>' +
       '<button id="p-change" class="del">바꾸기</button>';
     document.getElementById("p-change").onclick = showSelector;
+    clearWarn();
     renderTerms();
   } else {
     band.style.display = "none";
@@ -215,12 +232,15 @@ function renderProjectArea() {
 function renderProjects() {
   const list = document.getElementById("p-list");
   list.innerHTML = "";
-  list.appendChild(projectRow(null, "공통", "모든 작업 공용", false));   // 공통 = 항상 맨 위
+  list.appendChild(projectRow(null, "공통", "모든 작업 공용", false));
   db.projects.forEach(p => list.appendChild(projectRow(p.id, p.name, p.genre, true)));
 
-  // 자동완성 제안: 기존 프로젝트 이름들
-  const dl = document.getElementById("p-name-suggest");
-  dl.innerHTML = db.projects.map(p => '<option value="' + esc(p.name) + '">').join("");
+  // 자동완성 제안: 기존 프로젝트 이름 + 장르
+  document.getElementById("p-name-suggest").innerHTML =
+    db.projects.map(p => '<option value="' + esc(p.name) + '">' + esc(p.genre || "") + '</option>').join("");
+  const genres = [...new Set(db.projects.map(p => p.genre).filter(Boolean))];
+  document.getElementById("p-genre-suggest").innerHTML =
+    genres.map(g => '<option value="' + esc(g) + '">').join("");
 }
 
 function projectRow(id, name, sub, deletable) {
@@ -244,29 +264,50 @@ function projectRow(id, name, sub, deletable) {
   }
   return row;
 }
-  
-/* === 글로서리: 추가 === */
-function addTerm() {
+
+/* === 프로젝트 이름 입력 시 장르 자동 채움 === */
+function autofillGenre() {
+  const name = document.getElementById("p-name").value.trim();
+  const match = db.projects.find(p => p.name === name);
+  if (match && match.genre) {
+    document.getElementById("p-genre").value = match.genre;
+  }
+}
+
+/* === 글로서리: 추가 시도 (중복 검사 분기) === */
+function tryAddTerm() {
   const source = document.getElementById("g-source").value.trim();
   const target = document.getElementById("g-target").value.trim();
   if (!source || !target) return;
 
-  // 중복 검사: 현재 프로젝트 + 공통 범위에서 같은 원문 찾기
-  const dup = db.terms.find(t =>
+  // 같은 원문 후보 찾기 (현재 프로젝트 + 공통)
+  const candidates = db.terms.filter(t =>
     t.source === source &&
     (t.projectId === currentProjectId || t.projectId === null)
   );
-  if (dup) {
-    const where = dup.projectId === null ? "공통" : projectName(dup.projectId);
-    const ok = confirm(
-      "'" + source + "'는 이미 [" + where + "]에 있어요 (→ " + dup.target + ").\n그래도 추가할까요?"
-    );
-    if (!ok) return;
+
+  // 경우 A: 없음 -> 바로 추가
+  if (candidates.length === 0) {
+    commitNewTerm(source, target);
+    return;
   }
 
+  // 번역까지 똑같은 게 있으면 -> 알림만
+  const exact = candidates.find(t => t.target === target);
+  if (exact) {
+    showWarn(source, target, candidates, true);
+    return;
+  }
+
+  // 번역이 다름 -> 덮어쓰기/신규 선택
+  showWarn(source, target, candidates, false);
+}
+
+/* === 글로서리: 실제 추가 === */
+function commitNewTerm(source, target) {
   db.terms.push({
     id: uid(),
-    projectId: currentProjectId,   // 선택된 프로젝트 (공통이면 null)
+    projectId: currentProjectId,
     source,
     target,
     status: document.getElementById("g-status").value,
@@ -274,12 +315,63 @@ function addTerm() {
     createdAt: Date.now()
   });
   save();
+  clearInputs();
+  renderTerms();
+}
 
-  // 입력칸 비우기
+/* === 글로서리: 덮어쓰기 === */
+function overwriteTerm(id) {
+  const t = db.terms.find(x => x.id === id);
+  if (!t) return;
+  t.target = document.getElementById("g-target").value.trim();
+  t.status = document.getElementById("g-status").value;
+  const note = document.getElementById("g-note").value.trim();
+  if (note) t.note = note;
+  save();
+  clearInputs();
+  renderTerms();
+}
+
+function clearInputs() {
   document.getElementById("g-source").value = "";
   document.getElementById("g-target").value = "";
   document.getElementById("g-note").value = "";
-  renderTerms();
+  clearWarn();
+}
+
+/* === 중복 경고 표시 === */
+function showWarn(source, target, candidates, sameTarget) {
+  const warn = document.getElementById("g-warn");
+  warn.style.display = "block";
+
+  if (sameTarget) {
+    // 번역까지 동일 -> 알림만
+    warn.innerHTML =
+      '<div class="warn-msg">\'' + esc(source) + ' \u2192 ' + esc(target) + '\'\ub294 \uc774\ubbf8 \uc788\uc5b4\uc694.</div>';
+    return;
+  }
+
+  // 번역이 다름 -> 후보별 덮어쓰기 + 신규
+  let html = '<div class="warn-msg">\'' + esc(source) +
+    '\'\uac00 \uc774\ubbf8 \uc788\uc5b4\uc694. \ub36e\uc5b4\uc4f8 \ub300\uc0c1\uc744 \uace0\ub974\uac70\ub098 \uc2e0\uaddc\ub85c \ucd94\uac00\ud558\uc138\uc694.</div>';
+  candidates.forEach(t => {
+    const where = t.projectId === null ? "\uacf5\ud1b5" : projectName(t.projectId);
+    html +=
+      '<div class="cand">' +
+        '<span>' + esc(t.source) + ' \u2192 <b>' + esc(t.target) + '</b> ' +
+        '<span class="where">[' + esc(where) + ']</span></span>' +
+        '<button onclick="overwriteTerm(\'' + t.id + '\')">\uc774\uac78 \ub36e\uc5b4\uc4f0\uae30</button>' +
+      '</div>';
+  });
+  html += '<button class="new-btn" onclick="commitNewTerm(\'' +
+    escAttr(source) + '\',\'' + escAttr(target) + '\')">\uc2e0\uaddc\ub85c \ucd94\uac00</button>';
+  warn.innerHTML = html;
+}
+
+function clearWarn() {
+  const warn = document.getElementById("g-warn");
+  warn.style.display = "none";
+  warn.innerHTML = "";
 }
 
 /* === 글로서리: 삭제 === */
@@ -289,7 +381,7 @@ function deleteTerm(id) {
   renderTerms();
 }
 
-/* === 글로서리: 목록 그리기 === */
+/* === 글로서리: 목록 그리기 (필터 적용) === */
 function renderTerms() {
   const list = document.getElementById("g-list");
 
@@ -299,24 +391,23 @@ function renderTerms() {
   });
 
   if (visible.length === 0) {
-    list.innerHTML = '<p class="muted">아직 용어가 없어요.</p>';
+    list.innerHTML = '<p class="muted">\uc544\uc9c1 \uc6a9\uc5b4\uac00 \uc5c6\uc5b4\uc694.</p>';
     return;
   }
   list.innerHTML = "";
   visible.forEach(t => {
     const el = document.createElement("div");
     el.className = "term";
-    // ... (이 아래는 기존 그대로) ...
 
     const left = document.createElement("div");
     left.innerHTML =
-      '<div class="term-main">' + esc(t.source) + ' → <b>' + esc(t.target) + '</b> ' +
+      '<div class="term-main">' + esc(t.source) + ' \u2192 <b>' + esc(t.target) + '</b> ' +
       '<span class="status">' + esc(t.status) + '</span></div>' +
       (t.note ? '<div class="term-note">' + esc(t.note) + '</div>' : '');
 
     const del = document.createElement("button");
     del.className = "del";
-    del.textContent = "삭제";
+    del.textContent = "\uc0ad\uc81c";
     del.onclick = () => deleteTerm(t.id);
 
     el.appendChild(left);
@@ -336,20 +427,22 @@ function exportJSON() {
   URL.revokeObjectURL(url);
 }
 
-/* === 작은 헬퍼: HTML 이스케이프 === */
+/* === 헬퍼: HTML 이스케이프 === */
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+function escAttr(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
 
 /* === 시작 === */
-/* === 시작 === */
 document.getElementById("p-add").onclick = addProject;
-document.getElementById("g-add").onclick = addTerm;
+document.getElementById("p-name").addEventListener("change", autofillGenre);
+document.getElementById("g-add").onclick = tryAddTerm;
 document.getElementById("export").onclick = exportJSON;
 load();
 renderProjectArea();
-renderTerms();
 </script>
 
 </body>
