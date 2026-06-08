@@ -160,9 +160,14 @@
 <div id="style-section" style="display:none;">
 <h2>스타일 가이드</h2>
 <div class="row">
+  <select id="s-item-select" style="flex:1;">
+    <option value="">항목 선택…</option>
+    <option value="__new__">+ 새 항목</option>
+  </select>
+  <input id="s-item-new" placeholder="새 항목 이름" style="display:none;">
+</div>
+<div class="row">
   <input id="s-title" placeholder="제목 (예: 반말체로 통일)">
-  <input id="s-item" placeholder="항목 (예: UI, 컷신)" list="s-item-suggest">
-  <datalist id="s-item-suggest"></datalist>
 </div>
 <div class="row">
   <input id="s-content" placeholder="내용 (어떤 결정인지)">
@@ -456,13 +461,15 @@ function addDecision() {
     projectId: currentProjectId,
     title,
     content,
-    item: document.getElementById("s-item").value.trim(),
+    item: getStyleItem(),
     createdAt: Date.now()
   });
   save();
   document.getElementById("s-title").value = "";
   document.getElementById("s-content").value = "";
-  document.getElementById("s-item").value = "";
+  document.getElementById("s-item-select").value = "";
+  document.getElementById("s-item-new").value = "";
+  document.getElementById("s-item-new").style.display = "none";
   renderDecisions();
 }
 
@@ -483,7 +490,18 @@ function deleteDecision(id) {
     }
   );
 }
-
+  
+/* === 스타일 가이드: 항목 select 동작 === */
+function onStyleItemChange() {
+  const isNew = document.getElementById("s-item-select").value === "__new__";
+  document.getElementById("s-item-new").style.display = isNew ? "block" : "none";
+}
+function getStyleItem() {
+  const sel = document.getElementById("s-item-select").value;
+  if (sel === "__new__") return document.getElementById("s-item-new").value.trim();
+  return sel;
+}
+  
 /* === 스타일 가이드: 목록 (필터 + 공통 태그) === */
 function renderDecisions() {
   const list = document.getElementById("s-list");
@@ -495,8 +513,13 @@ function renderDecisions() {
 
   // 항목 자동완성 제안
   const items = [...new Set(db.decisions.map(d => d.item).filter(Boolean))];
-  document.getElementById("s-item-suggest").innerHTML =
-    items.map(i => '<option value="' + esc(i) + '">').join("");
+  const sel = document.getElementById("s-item-select");
+  const keep = sel.value;
+  sel.innerHTML =
+    '<option value="">항목 선택…</option>' +
+    items.map(i => '<option value="' + esc(i) + '">' + esc(i) + '</option>').join("") +
+    '<option value="__new__">+ 새 항목</option>';
+  sel.value = keep;
 
   if (visible.length === 0) {
     list.innerHTML = '<p class="muted">아직 스타일 결정이 없어요.</p>';
@@ -628,6 +651,7 @@ document.getElementById("p-add").onclick = addProject;
 document.getElementById("p-name").addEventListener("change", autofillGenre);
 document.getElementById("g-add").onclick = tryAddTerm;
 document.getElementById("s-add").onclick = addDecision;
+  document.getElementById("s-item-select").onchange = onStyleItemChange;
 document.querySelectorAll(".tab-btn").forEach(b => {
   b.onclick = () => switchTab(b.dataset.tab);
 });  
