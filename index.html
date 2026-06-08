@@ -69,7 +69,8 @@
 <div id="p-select">
   <h2>프로젝트 선택</h2>
   <div class="row">
-    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
+    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)" list="p-name-suggest">
+    <datalist id="p-name-suggest"></datalist>
     <input id="p-genre" placeholder="장르 (예: 게임)">
     <button id="p-add">추가</button>
   </div>
@@ -216,6 +217,10 @@ function renderProjects() {
   list.innerHTML = "";
   list.appendChild(projectRow(null, "공통", "모든 작업 공용", false));   // 공통 = 항상 맨 위
   db.projects.forEach(p => list.appendChild(projectRow(p.id, p.name, p.genre, true)));
+
+  // 자동완성 제안: 기존 프로젝트 이름들
+  const dl = document.getElementById("p-name-suggest");
+  dl.innerHTML = db.projects.map(p => '<option value="' + esc(p.name) + '">').join("");
 }
 
 function projectRow(id, name, sub, deletable) {
@@ -245,6 +250,19 @@ function addTerm() {
   const source = document.getElementById("g-source").value.trim();
   const target = document.getElementById("g-target").value.trim();
   if (!source || !target) return;
+
+  // 중복 검사: 현재 프로젝트 + 공통 범위에서 같은 원문 찾기
+  const dup = db.terms.find(t =>
+    t.source === source &&
+    (t.projectId === currentProjectId || t.projectId === null)
+  );
+  if (dup) {
+    const where = dup.projectId === null ? "공통" : projectName(dup.projectId);
+    const ok = confirm(
+      "'" + source + "'는 이미 [" + where + "]에 있어요 (→ " + dup.target + ").\n그래도 추가할까요?"
+    );
+    if (!ok) return;
+  }
 
   db.terms.push({
     id: uid(),
