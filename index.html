@@ -30,6 +30,14 @@
 <body>
 
 <h1>스페인어 LQA</h1>
+  <!-- === 프로젝트: 추가 폼 === -->
+<h2>프로젝트</h2>
+<div class="row">
+  <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
+  <input id="p-genre" placeholder="장르 (예: 게임)">
+  <button id="p-add">추가</button>
+</div>
+<div id="p-list"></div>
 
 <!-- === 글로서리: 추가 폼 === -->
 <h2>글로서리</h2>
@@ -86,6 +94,60 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+  /* === 프로젝트: 추가 === */
+function addProject() {
+  const name = document.getElementById("p-name").value.trim();
+  if (!name) return;
+
+  db.projects.push({
+    id: uid(),
+    name,
+    genre: document.getElementById("p-genre").value.trim(),
+    createdAt: Date.now()
+  });
+  save();
+
+  document.getElementById("p-name").value = "";
+  document.getElementById("p-genre").value = "";
+  renderProjects();
+}
+
+/* === 프로젝트: 삭제 === */
+function deleteProject(id) {
+  db.projects = db.projects.filter(p => p.id !== id);
+  save();
+  renderProjects();
+}
+
+/* === 프로젝트: 목록 그리기 === */
+function renderProjects() {
+  const list = document.getElementById("p-list");
+  if (db.projects.length === 0) {
+    list.innerHTML = '<p class="muted">아직 프로젝트가 없어요.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  db.projects.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "term";
+
+    const left = document.createElement("div");
+    left.innerHTML =
+      '<div class="term-main">' + esc(p.name) +
+      (p.genre ? ' <span class="status">' + esc(p.genre) + '</span>' : '') +
+      '</div>';
+
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "삭제";
+    del.onclick = () => deleteProject(p.id);
+
+    el.appendChild(left);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+  
 /* === 글로서리: 추가 === */
 function addTerm() {
   const source = document.getElementById("g-source").value.trim();
@@ -164,9 +226,12 @@ function esc(s) {
 }
 
 /* === 시작 === */
+/* === 시작 === */
+document.getElementById("p-add").onclick = addProject;
 document.getElementById("g-add").onclick = addTerm;
 document.getElementById("export").onclick = exportJSON;
 load();
+renderProjects();
 renderTerms();
 </script>
 
