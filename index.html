@@ -144,7 +144,7 @@
   
 <!-- === 글로서리 (프로젝트 선택 후 표시) === -->
 <div id="glossary-section" style="display:none;">
-<h2>글로서리</h2>
+<div class="section-head"><h2>글로서리</h2><button id="g-add" class="add-btn">추가</button></div>
 <div class="row">
   <input id="g-source" placeholder="원문 (예: Guild)">
   <input id="g-target" placeholder="번역 (예: Gremio)">
@@ -156,7 +156,6 @@
     <option value="금지">금지</option>
   </select>
   <input id="g-note" placeholder="메모 (선택)">
-  <button id="g-add">추가</button>
 </div>
 
 <div id="g-warn" class="warn-box"></div>
@@ -165,7 +164,7 @@
 
 <!-- === 스타일/캐릭터/QA (준비 중) === -->
 <div id="style-section" style="display:none;">
-<h2>스타일 가이드</h2>
+<div class="section-head"><h2>스타일 가이드</h2><button id="s-add" class="add-btn">추가</button></div>
 <div class="row">
   <select id="s-item-select" style="flex:1;">
     <option value="">항목 선택…</option>
@@ -178,7 +177,6 @@
 </div>
 <div class="row">
   <input id="s-content" placeholder="내용 (어떤 결정인지)">
-  <button id="s-add">추가</button>
 </div>
 <div id="s-list"></div>
 </div>
