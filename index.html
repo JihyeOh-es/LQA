@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스페인어 LQA</title>
+<style>
+  /* === 스타일: 의도적으로 맨몸 (나중에 입힐 자리) === */
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 24px;
+    color: #222; line-height: 1.5;
+  }
+  h1 { font-size: 20px; font-weight: 600; }
+  h2 { font-size: 16px; font-weight: 600; margin-top: 28px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  input, select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+  input { flex: 1; min-width: 120px; }
+  button { padding: 7px 14px; border: 1px solid #999; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; }
+  button:hover { background: #f2f2f2; }
+  .term { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #eee; }
+  .term-main { font-size: 15px; }
+  .term-note { font-size: 13px; color: #666; }
+  .status { font-size: 12px; padding: 2px 8px; border-radius: 5px; background: #eee; }
+  .del { border-color: #ddd; color: #999; padding: 4px 10px; }
+  .muted { color: #888; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>스페인어 LQA</h1>
+
+<!-- === 글로서리: 추가 폼 === -->
+<h2>글로서리</h2>
+<div class="row">
+  <input id="g-source" placeholder="원문 (예: Guild)">
+  <input id="g-target" placeholder="번역 (예: Gremio)">
+</div>
+<div class="row">
+  <select id="g-status">
+    <option value="권장">권장</option>
+    <option value="주의">주의</option>
+    <option value="금지">금지</option>
+  </select>
+  <input id="g-note" placeholder="메모 (선택)">
+  <button id="g-add">추가</button>
+</div>
+
+<!-- === 글로서리: 목록 === -->
+<div id="g-list"></div>
+
+<h2>내보내기</h2>
+<button id="export">전체 JSON 내보내기</button>
+
+<script>
+/* === 데이터층: 평평한 배열 + localStorage === */
+const KEY = "spanish-lqa-db";
+
+const db = {
+  meta: { version: 1 },
+  projects: [],     // 작업 (꼬리표 대상)
+  terms: [],        // 글로서리
+  decisions: [],    // 스타일 가이드
+  characters: [],   // 캐릭터 시트
+  findings: [],     // QA 로그
+  whitelist: []     // 오류 아님 목록
+};
+
+function load() {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return;
+  try {
+    const saved = JSON.parse(raw);
+    Object.assign(db, saved);   // 저장된 값으로 덮어쓰기
+  } catch (e) {
+    console.error("저장 데이터 읽기 실패:", e);
+  }
+}
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(db));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/* === 글로서리: 추가 === */
+function addTerm() {
+  const source = document.getElementById("g-source").value.trim();
+  const target = document.getElementById("g-target").value.trim();
+  if (!source || !target) return;
+
+  db.terms.push({
+    id: uid(),
+    projectId: null,            // null = 공통 (작업별 분류는 슬라이스 2에서)
+    source,
+    target,
+    status: document.getElementById("g-status").value,
+    note: document.getElementById("g-note").value.trim(),
+    createdAt: Date.now()
+  });
+  save();
+
+  // 입력칸 비우기
+  document.getElementById("g-source").value = "";
+  document.getElementById("g-target").value = "";
+  document.getElementById("g-note").value = "";
+  renderTerms();
+}
+
+/* === 글로서리: 삭제 === */
+function deleteTerm(id) {
+  db.terms = db.terms.filter(t => t.id !== id);
+  save();
+  renderTerms();
+}
+
+/* === 글로서리: 목록 그리기 === */
+function renderTerms() {
+  const list = document.getElementById("g-list");
+  if (db.terms.length === 0) {
+    list.innerHTML = '<p class="muted">아직 용어가 없어요.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  db.terms.forEach(t => {
+    const el = document.createElement("div");
+    el.className = "term";
+
+    const left = document.createElement("div");
+    left.innerHTML =
+      '<div class="term-main">' + esc(t.source) + ' → <b>' + esc(t.target) + '</b> ' +
+      '<span class="status">' + esc(t.status) + '</span></div>' +
+      (t.note ? '<div class="term-note">' + esc(t.note) + '</div>' : '');
+
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "삭제";
+    del.onclick = () => deleteTerm(t.id);
+
+    el.appendChild(left);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+
+/* === 내보내기 === */
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "spanish-lqa-backup.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* === 작은 헬퍼: HTML 이스케이프 === */
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+/* === 시작 === */
+document.getElementById("g-add").onclick = addTerm;
+document.getElementById("export").onclick = exportJSON;
+load();
+renderTerms();
+</script>
+
+</body>
+</html>
