@@ -175,7 +175,22 @@
 </div>
 <div id="s-list"></div>
 </div>
-<div id="character-section" style="display:none;"><h2>캐릭터</h2><p class="muted">곧 만들 거예요.</p></div>
+<div id="character-section" style="display:none;">
+<h2>캐릭터 바이블</h2>
+<div class="row">
+  <input id="c-source" placeholder="이름 (원문)">
+  <input id="c-target" placeholder="이름 (번역)">
+</div>
+<div class="row"><input id="c-tone" placeholder="말투 (예: 반말, 활기차고 직설적)"></div>
+<div class="row"><input id="c-rel" placeholder="관계 (예: 마법사맛의 형 / 악마맛과 라이벌)"></div>
+<div class="row"><input id="c-habit" placeholder="말버릇 · 금지어"></div>
+<div class="row">
+  <input id="c-note" placeholder="메모 (선택)">
+  <button id="c-add">추가</button>
+</div>
+<div id="c-warn" class="warn-box"></div>
+<div id="c-list"></div>
+</div>
 <div id="qa-section" style="display:none;"><h2>QA 로그</h2><p class="muted">곧 만들 거예요.</p></div>
 
 <h2>내보내기</h2>
@@ -274,6 +289,7 @@ function switchTab(name) {
   currentTab = name;
   TABS.forEach(t => {
     if (name === "style") renderDecisions();
+    if (name === "character") renderCharacters();
     document.getElementById(t + "-section").style.display = (t === name) ? "block" : "none";
   });
   document.querySelectorAll(".tab-btn").forEach(b => {
@@ -490,6 +506,104 @@ function deleteDecision(id) {
     }
   );
 }
+
+/* === 캐릭터 바이블: 추가 (이름 중복이면 경고+막기) === */
+function addCharacter() {
+  const source = document.getElementById("c-source").value.trim();
+  const target = document.getElementById("c-target").value.trim();
+  if (!source) return;
+
+  const dup = db.characters.find(c =>
+    c.source === source &&
+    (c.projectId === currentProjectId || c.projectId === null)
+  );
+  if (dup) {
+    const warn = document.getElementById("c-warn");
+    warn.style.display = "block";
+    const where = dup.projectId === null ? "공통" : projectName(dup.projectId);
+    warn.innerHTML = '<div class="warn-msg">\'' + esc(source) +
+      '\'는 이미 [' + esc(where) + ']에 있는 캐릭터예요. 기존 항목을 수정하세요.</div>';
+    return;
+  }
+
+  db.characters.push({
+    id: uid(),
+    projectId: currentProjectId,
+    source, target,
+    tone: document.getElementById("c-tone").value.trim(),
+    rel: document.getElementById("c-rel").value.trim(),
+    habit: document.getElementById("c-habit").value.trim(),
+    note: document.getElementById("c-note").value.trim(),
+    createdAt: Date.now()
+  });
+  save();
+  ["c-source","c-target","c-tone","c-rel","c-habit","c-note"].forEach(i =>
+    document.getElementById(i).value = "");
+  clearWarn("c-warn");
+  renderCharacters();
+}
+
+/* === 캐릭터 바이블: 삭제 === */
+function deleteCharacter(id) {
+  const c = db.characters.find(x => x.id === id);
+  if (!c) return;
+  const isCommon = c.projectId === null;
+  openModal(
+    "캐릭터 삭제",
+    isCommon
+      ? "'" + c.source + "'는 [공통] 캐릭터예요. 삭제하면 모든 작업에서 사라져요. 정말 삭제할까요?"
+      : "'" + c.source + "'를 삭제할까요?",
+    () => {
+      db.characters = db.characters.filter(x => x.id !== id);
+      save();
+      renderCharacters();
+    }
+  );
+}
+
+/* === 캐릭터 바이블: 목록 === */
+function renderCharacters() {
+  const list = document.getElementById("c-list");
+
+  const visible = db.characters.filter(c => {
+    if (currentProjectId === null) return c.projectId === null;
+    return c.projectId === currentProjectId || c.projectId === null;
+  });
+
+  if (visible.length === 0) {
+    list.innerHTML = '<p class="muted">아직 캐릭터가 없어요.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  visible.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "term";
+    const showScope = (currentProjectId !== null && c.projectId === null);
+
+    const lines = [];
+    if (c.tone) lines.push("말투: " + esc(c.tone));
+    if (c.rel) lines.push("관계: " + esc(c.rel));
+    if (c.habit) lines.push("말버릇: " + esc(c.habit));
+    if (c.note) lines.push(esc(c.note));
+
+    const left = document.createElement("div");
+    left.innerHTML =
+      '<div class="term-main"><b>' + esc(c.source) + '</b>' +
+      (c.target ? ' → ' + esc(c.target) : '') +
+      (showScope ? ' <span class="scope-tag">◇ 공통</span>' : '') +
+      '</div>' +
+      (lines.length ? '<div class="term-note">' + lines.join('<br>') + '</div>' : '');
+
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "삭제";
+    del.onclick = () => deleteCharacter(c.id);
+
+    el.appendChild(left);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
   
 /* === 스타일 가이드: 항목 select 동작 === */
 function onStyleItemChange() {
@@ -651,7 +765,8 @@ document.getElementById("p-add").onclick = addProject;
 document.getElementById("p-name").addEventListener("change", autofillGenre);
 document.getElementById("g-add").onclick = tryAddTerm;
 document.getElementById("s-add").onclick = addDecision;
-  document.getElementById("s-item-select").onchange = onStyleItemChange;
+document.getElementById("s-item-select").onchange = onStyleItemChange;
+document.getElementById("c-add").onclick = addCharacter;
 document.querySelectorAll(".tab-btn").forEach(b => {
   b.onclick = () => switchTab(b.dataset.tab);
 });  
