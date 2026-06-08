@@ -197,7 +197,30 @@
 <div id="c-warn" class="warn-box"></div>
 <div id="c-list"></div>
 </div>
-<div id="qa-section" style="display:none;"><h2>QA 로그</h2><p class="muted">곧 만들 거예요.</p></div>
+<div id="qa-section" style="display:none;">
+<div class="section-head"><h2>QA 로그</h2><button id="q-add" class="add-btn">추가</button></div>
+<div class="row"><input id="q-source" placeholder="원문 문장"></div>
+<div class="row"><input id="q-target" placeholder="번역 문장"></div>
+<div class="row">
+  <select id="q-cat-select" style="flex:1;">
+    <option value="">분류 선택…</option>
+    <option value="규칙">규칙</option>
+    <option value="글로서리">글로서리</option>
+    <option value="문법">문법</option>
+    <option value="톤">톤</option>
+    <option value="__new__">+ 새 분류</option>
+  </select>
+  <input id="q-cat-new" placeholder="새 분류 이름" style="display:none;">
+  <select id="q-sev" style="flex:1;">
+    <option value="경미">경미</option>
+    <option value="주요">주요</option>
+    <option value="심각">심각</option>
+  </select>
+</div>
+<div class="row"><input id="q-fix" placeholder="수정안 (어떻게 고쳤나)"></div>
+<div class="row"><input id="q-note" placeholder="메모 (선택)"></div>
+<div id="q-list"></div>
+</div>
 
 <h2>내보내기</h2>
 <button id="export">전체 JSON 내보내기</button>
@@ -296,6 +319,7 @@ function switchTab(name) {
   TABS.forEach(t => {
     if (name === "style") renderDecisions();
     if (name === "character") renderCharacters();
+    if (name === "qa") renderFindings();
     document.getElementById(t + "-section").style.display = (t === name) ? "block" : "none";
   });
   document.querySelectorAll(".tab-btn").forEach(b => {
@@ -513,6 +537,107 @@ function deleteDecision(id) {
   );
 }
 
+/* === QA 로그: 분류 select 동작 === */
+function onQaCatChange() {
+  const isNew = document.getElementById("q-cat-select").value === "__new__";
+  document.getElementById("q-cat-new").style.display = isNew ? "block" : "none";
+}
+function getQaCat() {
+  const sel = document.getElementById("q-cat-select").value;
+  if (sel === "__new__") return document.getElementById("q-cat-new").value.trim();
+  return sel;
+}
+
+/* === QA 로그: 직접 추가 === */
+function addFinding() {
+  const source = document.getElementById("q-source").value.trim();
+  const target = document.getElementById("q-target").value.trim();
+  if (!source && !target) return;
+
+  db.findings.push({
+    id: uid(),
+    projectId: currentProjectId,
+    source, target,
+    category: getQaCat(),
+    severity: document.getElementById("q-sev").value,
+    fix: document.getElementById("q-fix").value.trim(),
+    note: document.getElementById("q-note").value.trim(),
+    origin: "manual",          // 직접 추가 (검사기에서 오면 "auto")
+    createdAt: Date.now()
+  });
+  save();
+  ["q-source","q-target","q-fix","q-note","q-cat-new"].forEach(i =>
+    document.getElementById(i).value = "");
+  document.getElementById("q-cat-select").value = "";
+  document.getElementById("q-cat-new").style.display = "none";
+  renderFindings();
+}
+
+/* === QA 로그: 삭제 === */
+function deleteFinding(id) {
+  const f = db.findings.find(x => x.id === id);
+  if (!f) return;
+  const isCommon = f.projectId === null;
+  openModal(
+    "QA 기록 삭제",
+    isCommon
+      ? "이 기록은 [공통]이에요. 삭제하면 모든 작업에서 사라져요. 정말 삭제할까요?"
+      : "이 QA 기록을 삭제할까요?",
+    () => {
+      db.findings = db.findings.filter(x => x.id !== id);
+      save();
+      renderFindings();
+    }
+  );
+}
+
+/* === QA 로그: 목록 === */
+function renderFindings() {
+  const list = document.getElementById("q-list");
+
+  const visible = db.findings.filter(f => {
+    if (currentProjectId === null) return f.projectId === null;
+    return f.projectId === currentProjectId || f.projectId === null;
+  });
+
+  if (visible.length === 0) {
+    list.innerHTML = '<p class="muted">아직 QA 기록이 없어요. (검사기에서 저장하거나 직접 추가)</p>';
+    return;
+  }
+  list.innerHTML = "";
+  visible.forEach(f => {
+    const el = document.createElement("div");
+    el.className = "term";
+    const showScope = (currentProjectId !== null && f.projectId === null);
+
+    const sevClass = f.severity === "심각" ? "status-금지"
+                   : f.severity === "주요" ? "status-주의" : "status-권장";
+
+    const left = document.createElement("div");
+    left.innerHTML =
+      '<div class="term-main">' +
+      (f.category ? '<span class="status status-주의">' + esc(f.category) + '</span> ' : '') +
+      '<span class="status ' + sevClass + '">' + esc(f.severity) + '</span>' +
+      (f.origin === "manual" ? ' <span class="scope-tag">직접</span>' : '') +
+      (showScope ? ' <span class="scope-tag">◇ 공통</span>' : '') +
+      '</div>' +
+      '<div class="term-note">' +
+      (f.target ? esc(f.target) : '') +
+      (f.fix ? ' → <b>' + esc(f.fix) + '</b>' : '') +
+      (f.note ? '<br>' + esc(f.note) : '') +
+      '</div>';
+
+    const del = document.createElement("button");
+    del.className = "del";
+    del.textContent = "삭제";
+    del.onclick = () => deleteFinding(f.id);
+
+    el.appendChild(left);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+  
 /* === 캐릭터 바이블: 추가 (이름 중복이면 경고+막기) === */
 function addCharacter() {
   const source = document.getElementById("c-source").value.trim();
@@ -778,6 +903,8 @@ document.getElementById("g-add").onclick = tryAddTerm;
 document.getElementById("s-add").onclick = addDecision;
 document.getElementById("s-item-select").onchange = onStyleItemChange;
 document.getElementById("c-add").onclick = addCharacter;
+document.getElementById("q-add").onclick = addFinding;
+document.getElementById("q-cat-select").onchange = onQaCatChange;
 document.querySelectorAll(".tab-btn").forEach(b => {
   b.onclick = () => switchTab(b.dataset.tab);
 });  
