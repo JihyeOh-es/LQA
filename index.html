@@ -111,11 +111,11 @@
   }
 
   /* === 삭제 확인 모달 === */
-  #modal-overlay {
+  #modal-overlay, #pmodal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
     align-items: center; justify-content: center; z-index: 10;
   }
-  #modal {
+  #modal, #pmodal {
     background: #fff; border-radius: 12px; padding: 22px 24px;
     max-width: 360px; width: 90%;
   }
@@ -140,14 +140,18 @@
   <button id="p-new-btn" class="del">+ 새 프로젝트</button>
 </div>
 
-<!-- === 새 프로젝트 추가 (숨김, 토글) === -->
-<div id="p-new" style="display:none;">
-  <div class="row">
-    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
-    <input id="p-genre" placeholder="장르 (예: 게임)">
-    <button id="p-add" class="add-btn">추가</button>
+<!-- === 새 프로젝트 모달 === -->
+<div id="pmodal-overlay">
+  <div id="pmodal">
+    <div class="modal-title">새 프로젝트</div>
+    <div class="row"><input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)"></div>
+    <div class="row"><input id="p-genre" placeholder="장르 (예: 게임)"></div>
+    <div id="p-warn" class="warn-box"></div>
+    <div class="modal-btns">
+      <button id="pmodal-cancel">취소</button>
+      <button id="pmodal-add" class="add-btn">추가</button>
+    </div>
   </div>
-  <div id="p-warn" class="warn-box"></div>
 </div>
 
 <!-- === 검사기 (메인) === -->
@@ -311,13 +315,16 @@ function addProject() {
     return;
   }
 
-  db.projects.push({ id: uid(), name, genre, createdAt: Date.now() });
+  const newId = uid();
+  db.projects.push({ id: newId, name, genre, createdAt: Date.now() });
   save();
   document.getElementById("p-name").value = "";
   document.getElementById("p-genre").value = "";
   clearWarn("p-warn");
+  currentProjectId = newId;        // 새 프로젝트 자동 선택
   renderCriteria();
-  document.getElementById("p-new").style.display = "none";
+  closeProjectModal();
+  if (cabinetOpen) switchTab(currentTab);
 }
 
 function showProjectWarn(name, genre) {
@@ -430,10 +437,15 @@ function toggleCabinet() {
   if (cabinetOpen) switchTab(currentTab);
 }
 
-/* === 새 프로젝트 폼 토글 === */
-function toggleNewProject() {
-  const box = document.getElementById("p-new");
-  box.style.display = box.style.display === "none" ? "block" : "none";
+/* === 새 프로젝트 모달 === */
+function openProjectModal() {
+  document.getElementById("p-name").value = "";
+  document.getElementById("p-genre").value = "";
+  clearWarn("p-warn");
+  document.getElementById("pmodal-overlay").style.display = "flex";
+}
+function closeProjectModal() {
+  document.getElementById("pmodal-overlay").style.display = "none";
 }
 
 /* === 프로젝트 이름 입력 시 장르 자동 채움 === */
@@ -923,7 +935,10 @@ function escAttr(s) {
 
 /* === 시작 === */
 document.getElementById("p-add").onclick = addProject;
-document.getElementById("p-new-btn").onclick = toggleNewProject;
+document.getElementById("p-new-btn").onclick = openProjectModal;
+document.getElementById("pmodal-cancel").onclick = closeProjectModal;
+document.getElementById("pmodal-add").onclick = addProject;
+document.getElementById("pmodal-overlay").onclick = (e) => { if (e.target.id === "pmodal-overlay") closeProjectModal(); };
 document.getElementById("cabinet-toggle").onclick = toggleCabinet;
 document.getElementById("criteria-select").onchange = (e) => {
   currentProjectId = e.target.value === "" ? null : e.target.value;
