@@ -32,6 +32,18 @@
   }
   .add-btn:hover { background: #4f47ad; }
 
+  /* === 헤더 === */
+  .app-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .logo { display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: #EEEDFE; color: #5D54C2; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .logo-word { font-size: 17px; font-weight: 600; }
+  .cabinet-btn { margin-left: auto; color: #534AB7; border-color: #AFA9EC; }
+
+  /* === 검사 기준 줄 === */
+  .criteria-bar { display: flex; align-items: center; gap: 10px; background: #f5f4ed; padding: 12px 14px; border-radius: 8px; margin-bottom: 18px; }
+  .criteria-label { font-size: 13px; color: #888; }
+  #criteria-select { flex: 0 1 auto; }
+
   /* === 탭 버튼 === */
   #tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid #eee; }
   .tab-btn {
@@ -115,27 +127,46 @@
 </head>
 <body>
 
-<h1>스페인어 LQA</h1>
-
-<!-- === 프로젝트: 현재 선택 띠 (선택 후 표시) === -->
-<div id="p-band" class="term" style="display:none;"></div>
-
-<!-- === 프로젝트: 선택 화면 (선택 전 표시) === -->
-<div id="p-select">
-  <h2>프로젝트 선택</h2>
-  <div class="row">
-    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)" list="p-name-suggest">
-    <datalist id="p-name-suggest"></datalist>
-    <input id="p-genre" placeholder="장르 (예: 게임)" list="p-genre-suggest">
-    <datalist id="p-genre-suggest"></datalist>
-    <button id="p-add">추가</button>
-  </div>
-  <div id="p-warn" class="warn-box"></div>
-  <div id="p-list"></div>
+<!-- === 헤더: 로고 + 서랍장 토글 === -->
+<div class="app-head">
+  <div class="logo"><span class="logo-mark">L</span><span class="logo-word">Lince</span></div>
+  <button id="cabinet-toggle" class="cabinet-btn"><i class="ti ti-folders"></i> 서랍장 열기</button>
 </div>
 
-  <!-- === 탭 (프로젝트 선택 후 표시) === -->
-<div id="tabs" style="display:none;">
+<!-- === 검사 기준 (프로젝트 선택) === -->
+<div class="criteria-bar">
+  <span class="criteria-label">검사 기준</span>
+  <select id="criteria-select"></select>
+  <button id="p-new-btn" class="del">+ 새 프로젝트</button>
+</div>
+
+<!-- === 새 프로젝트 추가 (숨김, 토글) === -->
+<div id="p-new" style="display:none;">
+  <div class="row">
+    <input id="p-name" placeholder="작업 이름 (예: 쿠키런 ES)">
+    <input id="p-genre" placeholder="장르 (예: 게임)">
+    <button id="p-add" class="add-btn">추가</button>
+  </div>
+  <div id="p-warn" class="warn-box"></div>
+</div>
+
+<!-- === 검사기 (메인) === -->
+<div id="checker-section">
+  <h2>검사할 번역</h2>
+  <div class="row">
+    <textarea id="chk-source" placeholder="원문 붙여넣기…" rows="4" style="flex:1;"></textarea>
+    <textarea id="chk-target" placeholder="번역 붙여넣기…" rows="4" style="flex:1;"></textarea>
+  </div>
+  <div class="section-head">
+    <span class="muted">한 줄에 한 문장씩</span>
+    <button id="chk-run" class="add-btn">검사</button>
+  </div>
+  <div id="chk-result"></div>
+</div>
+
+<!-- === 서랍장 (숨김, 토글) === -->
+<div id="cabinet" style="display:none;">
+<div id="tabs">
   <button class="tab-btn" data-tab="glossary">글로서리</button>
   <button class="tab-btn" data-tab="style">스타일</button>
   <button class="tab-btn" data-tab="character">캐릭터</button>
@@ -221,6 +252,7 @@
 <div class="row"><input id="q-note" placeholder="메모 (선택)"></div>
 <div id="q-list"></div>
 </div>
+</div>
 
 <h2>내보내기</h2>
 <button id="export">전체 JSON 내보내기</button>
@@ -284,7 +316,8 @@ function addProject() {
   document.getElementById("p-name").value = "";
   document.getElementById("p-genre").value = "";
   clearWarn("p-warn");
-  renderProjects();
+  renderCriteria();
+  document.getElementById("p-new").style.display = "none";
 }
 
 function showProjectWarn(name, genre) {
@@ -305,7 +338,7 @@ function deleteProject(id) {
     () => {
       db.projects = db.projects.filter(x => x.id !== id);
       save();
-      renderProjects();
+      renderCriteria();
     }
   );
 }
@@ -375,40 +408,32 @@ function renderProjectArea() {
   }
 }
 
-/* === 프로젝트: 선택 목록 === */
-function renderProjects() {
-  const list = document.getElementById("p-list");
-  list.innerHTML = "";
-  list.appendChild(projectRow(null, "공통", "모든 작업 공용", false));
-  db.projects.forEach(p => list.appendChild(projectRow(p.id, p.name, p.genre, true)));
-
-  document.getElementById("p-name-suggest").innerHTML =
-    db.projects.map(p => '<option value="' + esc(p.name) + '">' + esc(p.genre || "") + '</option>').join("");
-  const genres = [...new Set(db.projects.map(p => p.genre).filter(Boolean))];
-  document.getElementById("p-genre-suggest").innerHTML =
-    genres.map(g => '<option value="' + esc(g) + '">').join("");
+/* === 검사 기준 드롭다운 채우기 === */
+function renderCriteria() {
+  const sel = document.getElementById("criteria-select");
+  const keep = currentProjectId === null ? "" : currentProjectId;
+  sel.innerHTML =
+    '<option value="">공통 (모든 작업)</option>' +
+    db.projects.map(p =>
+      '<option value="' + p.id + '">' + esc(p.name) + (p.genre ? " · " + esc(p.genre) : "") + '</option>'
+    ).join("");
+  sel.value = keep;
 }
 
-function projectRow(id, name, sub, deletable) {
-  const row = document.createElement("div");
-  row.className = "term";
-  row.style.cursor = "pointer";
-  row.onclick = () => selectProject(id);
+/* === 서랍장 열고 닫기 === */
+let cabinetOpen = false;
+function toggleCabinet() {
+  cabinetOpen = !cabinetOpen;
+  document.getElementById("cabinet").style.display = cabinetOpen ? "block" : "none";
+  document.getElementById("cabinet-toggle").innerHTML =
+    cabinetOpen ? '<i class="ti ti-x"></i> 서랍장 닫기' : '<i class="ti ti-folders"></i> 서랍장 열기';
+  if (cabinetOpen) switchTab(currentTab);
+}
 
-  const left = document.createElement("div");
-  left.innerHTML =
-    '<div class="term-main">' + esc(name) +
-    (sub ? ' <span class="genre-pill">' + esc(sub) + '</span>' : '') + '</div>';
-  row.appendChild(left);
-
-  if (deletable) {
-    const del = document.createElement("button");
-    del.className = "del";
-    del.textContent = "\uc0ad\uc81c";
-    del.onclick = (e) => { e.stopPropagation(); deleteProject(id); };
-    row.appendChild(del);
-  }
-  return row;
+/* === 새 프로젝트 폼 토글 === */
+function toggleNewProject() {
+  const box = document.getElementById("p-new");
+  box.style.display = box.style.display === "none" ? "block" : "none";
 }
 
 /* === 프로젝트 이름 입력 시 장르 자동 채움 === */
@@ -898,22 +923,28 @@ function escAttr(s) {
 
 /* === 시작 === */
 document.getElementById("p-add").onclick = addProject;
-document.getElementById("p-name").addEventListener("change", autofillGenre);
+document.getElementById("p-new-btn").onclick = toggleNewProject;
+document.getElementById("cabinet-toggle").onclick = toggleCabinet;
+document.getElementById("criteria-select").onchange = (e) => {
+  currentProjectId = e.target.value === "" ? null : e.target.value;
+  if (cabinetOpen) switchTab(currentTab);
+};
 document.getElementById("g-add").onclick = tryAddTerm;
 document.getElementById("s-add").onclick = addDecision;
 document.getElementById("s-item-select").onchange = onStyleItemChange;
 document.getElementById("c-add").onclick = addCharacter;
 document.getElementById("q-add").onclick = addFinding;
 document.getElementById("q-cat-select").onchange = onQaCatChange;
-document.querySelectorAll(".tab-btn").forEach(b => {
-  b.onclick = () => switchTab(b.dataset.tab);
-});  
+document.querySelectorAll(".tab-btn").forEach(b => { b.onclick = () => switchTab(b.dataset.tab); });
 document.getElementById("export").onclick = exportJSON;
 document.getElementById("modal-cancel").onclick = closeModal;
 document.getElementById("modal-confirm").onclick = () => { if (modalAction) modalAction(); closeModal(); };
 document.getElementById("modal-overlay").onclick = (e) => { if (e.target.id === "modal-overlay") closeModal(); };
+
 load();
-renderProjectArea();
+currentProjectId = null;
+projectChosen = true;
+renderCriteria();
 </script>
 
 </body>
