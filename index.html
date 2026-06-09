@@ -156,6 +156,12 @@
 
 <!-- === 검사기 (메인) === -->
 <div id="checker-section">
+  <div class="row" id="api-key-row">
+    <input id="api-key" type="password" placeholder="Claude API 키 (sk-ant-...)" style="flex:1;">
+    <button id="key-save" class="del">키 저장</button>
+    <button id="key-test" class="del">연결 테스트</button>
+  </div>
+  <div id="key-status" class="muted" style="margin-bottom:12px;"></div>
   <h2>검사할 번역</h2>
   <div class="row">
     <textarea id="chk-source" placeholder="원문 붙여넣기…" rows="4" style="flex:1;"></textarea>
@@ -914,7 +920,55 @@ function closeModal() {
   document.getElementById("modal-overlay").style.display = "none";
   modalAction = null;
 }
+/* === API 키 (브라우저에만 저장) === */
+const KEY_STORE = "lince-api-key";
 
+function saveKey() {
+  const k = document.getElementById("api-key").value.trim();
+  if (!k) return;
+  localStorage.setItem(KEY_STORE, k);
+  document.getElementById("key-status").textContent = "키 저장됨 (이 브라우저에만)";
+}
+
+function loadKey() {
+  return localStorage.getItem(KEY_STORE) || "";
+}
+
+/* === 연결 테스트 (CORS 막히는지 확인용) === */
+async function testKey() {
+  const key = loadKey() || document.getElementById("api-key").value.trim();
+  const status = document.getElementById("key-status");
+  if (!key) { status.textContent = "키를 먼저 입력하세요."; return; }
+
+  status.textContent = "테스트 중…";
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 20,
+        messages: [{ role: "user", content: "responde solo: ok" }]
+      })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      status.textContent = "응답 오류 " + res.status + ": " + t.slice(0, 120);
+      return;
+    }
+    const data = await res.json();
+    const txt = (data.content && data.content[0] && data.content[0].text) || "(응답 비어있음)";
+    status.textContent = "연결 성공! 응답: " + txt;
+  } catch (e) {
+    status.textContent = "호출 실패 (CORS일 가능성): " + e.message;
+  }
+}
+  
 /* === 내보내기 === */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
@@ -950,6 +1004,9 @@ document.getElementById("c-add").onclick = addCharacter;
 document.getElementById("q-add").onclick = addFinding;
 document.getElementById("q-cat-select").onchange = onQaCatChange;
 document.querySelectorAll(".tab-btn").forEach(b => { b.onclick = () => switchTab(b.dataset.tab); });
+document.getElementById("key-save").onclick = saveKey;
+document.getElementById("key-test").onclick = testKey;
+if (loadKey()) document.getElementById("key-status").textContent = "저장된 키 있음";
 document.getElementById("export").onclick = exportJSON;
 document.getElementById("modal-cancel").onclick = closeModal;
 document.getElementById("modal-confirm").onclick = () => { if (modalAction) modalAction(); closeModal(); };
