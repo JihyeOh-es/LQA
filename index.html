@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>스페인어 LQA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   /* === 스타일: 의도적으로 맨몸 (나중에 입힐 자리) === */
   * { box-sizing: border-box; }
@@ -123,6 +124,16 @@
   #modal .modal-msg { font-size: 14px; color: #555; margin-bottom: 18px; }
   #modal .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
   #modal .confirm { border-color: #c0392b; color: #c0392b; }
+
+/* === CSV 올리기 === */
+  .import-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .import-label { font-size: 13px; color: #555; display: flex; align-items: center; gap: 5px; }
+  .import-btn {
+    font-size: 13px; color: #534AB7; border: 0.5px solid #AFA9EC;
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  .import-btn:hover { background: #faf9ff; }
+</style>
 </style>
 </head>
 <body>
@@ -186,6 +197,11 @@
 <!-- === 글로서리 (프로젝트 선택 후 표시) === -->
 <div id="glossary-section" style="display:none;">
 <div class="section-head"><h2>글로서리</h2><button id="g-add" class="add-btn">추가</button></div>
+  <div class="import-row">
+  <label class="import-label"><input type="checkbox" id="g-import-overwrite"> 이미 있는 건 덮어쓰기</label>
+  <label class="import-btn">CSV 올리기<input type="file" id="g-import" accept=".csv" hidden></label>
+  <span id="g-import-status" class="muted"></span>
+</div>
 <div class="row">
   <input id="g-source" placeholder="원문 (예: Guild)">
   <input id="g-target" placeholder="번역 (예: Gremio)">
@@ -920,6 +936,61 @@ function closeModal() {
   document.getElementById("modal-overlay").style.display = "none";
   modalAction = null;
 }
+
+/* === 글로서리: CSV 올리기 === */
+function importGlossary(file) {
+  const overwrite = document.getElementById("g-import-overwrite").checked;
+  const status = document.getElementById("g-import-status");
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: (result) => {
+      let added = 0, skipped = 0, updated = 0;
+
+      result.data.forEach(row => {
+        const source = (row.source || "").trim();
+        const target = (row.target || "").trim();
+        if (!source || !target) return;
+
+        // 같은 원문이 현재 범위에 있나
+        const existing = db.terms.find(t =>
+          t.source === source && t.projectId === currentProjectId
+        );
+
+        if (existing) {
+          if (overwrite) {
+            existing.target = target;
+            existing.status = (row.status || existing.status || "권장").trim();
+            existing.note = (row.note || "").trim();
+            updated++;
+          } else {
+            skipped++;
+          }
+        } else {
+          db.terms.push({
+            id: uid(),
+            projectId: currentProjectId,
+            source, target,
+            status: (row.status || "권장").trim(),
+            note: (row.note || "").trim(),
+            createdAt: Date.now()
+          });
+          added++;
+        }
+      });
+
+      save();
+      renderTerms();
+      status.textContent =
+        added + "개 추가" +
+        (updated ? ", " + updated + "개 덮어씀" : "") +
+        (skipped ? ", " + skipped + "개 건너뜀" : "");
+    },
+    error: (err) => { status.textContent = "읽기 실패: " + err.message; }
+  });
+}
+  
 /* === API 키 (브라우저에만 저장) === */
 const KEY_STORE = "lince-api-key";
 
@@ -998,6 +1069,9 @@ document.getElementById("criteria-select").onchange = (e) => {
   if (cabinetOpen) switchTab(currentTab);
 };
 document.getElementById("g-add").onclick = tryAddTerm;
+document.getElementById("g-import").onchange = (e) => {
+  if (e.target.files[0]) { importGlossary(e.target.files[0]); e.target.value = ""; }
+};
 document.getElementById("s-add").onclick = addDecision;
 document.getElementById("s-item-select").onchange = onStyleItemChange;
 document.getElementById("c-add").onclick = addCharacter;
